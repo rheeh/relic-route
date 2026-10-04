@@ -10,6 +10,7 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parent.parent
 MAX_BODY = 100 * 1024 * 1024
 EXPORTS = {
+    "/__export/00-crew.png": ROOT / "showcase/00-crew.png",
     "/__export/01-map.png": ROOT / "showcase/01-map.png",
     "/__export/02-dossier.png": ROOT / "showcase/02-dossier.png",
     "/__export/03-confirm.png": ROOT / "showcase/03-confirm.png",
@@ -62,7 +63,7 @@ def main():
     args = parser.parse_args()
     server = ThreadingHTTPServer((args.bind, args.port), Handler)
     print(f"Relic Route: http://{args.bind}:{args.port}/demo/", flush=True)
-    print("本地开发服务：导出只写入五个固定文件。", flush=True)
+    print("本地开发服务：导出只写入六个固定文件。", flush=True)
     try:
         server.serve_forever()
     except KeyboardInterrupt:

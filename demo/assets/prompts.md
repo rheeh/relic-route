@@ -1,6 +1,22 @@
 # 《异物航线》生成素材
 
-两张素材使用 Codex 内置 `image_gen` 生成，用于本项目环境背景和奖励遗物。未使用现成游戏素材；界面与图标在代码中另行实现。这里的“原创”表示本项目的生成提示与构图，不表示纯手工绘制。
+本文件为当前素材的导航，并保留早期两张素材的完整提示词。AI 辅助概念美术使用 Codex 内置 `image_gen` 生成；界面文字、图标、地图与 Canvas 动效另行实现。“原创”指本项目的角色设定、提示与构图，不表示纯手工绘制。
+
+## v2 当前素材导航
+
+| 文件 | 用途与记录 |
+| --- | --- |
+| `characters/lyra.png`、`characters/orion.png` | 岑遥与赫朔的透明全身立绘，另以程序裁切生成头像；[实际提示词与 Alpha 说明](characters/prompts.md) |
+| `hangar-v2.png` | 角色整备、星图与出航确认的整备甲板环境；[完整提示词](hangar-v2-prompt.md) |
+| `relics-v2.png` | 三列透明图集，依次为航行铭牌、同心环光核、观测铜环；[完整提示词与采样约束](relics-v2-prompt.md) |
+| `field.png` | 本实验早期生成的观测环场景，当前仍用于任务档案背景；完整提示词保留如下 |
+| `destinations-v2.png` | 三个等宽栏从左至右为落锚船坞的桥吊、静默环站的断环、铜蚀残带的铜色残骸，已用于星图任务卡；[完整提示词与采样约束](destinations-v2-prompt.md) |
+
+角色与遗物是二维栅格图。环境、人物、程序光效和界面独立绘制；人物的整体位移、轻微缩放与视差不构成 Live2D、三维骨骼或独立肢体动画。
+
+## 历史素材记录
+
+下列两张素材为早期版本生成。`field.png` 继续作为背景使用；`lumen-core.png` 保留为历史素材，当前三件奖励由 `relics-v2.png` 提供。
 
 ## field.png
 
@@ -43,18 +59,34 @@ Text: none.
 Constraints: one relic only, no characters, no spacecraft, no text or letters, no labels, no UI, no HUD, no icons, no logo, no watermark; no excessive bloom, no cheap neon, no saturated purple or electric blue. Original design, no direct imitation of an existing game.
 ```
 
-## 来源与说明
+## 历史两图的来源与说明
 
 - 工具：Codex 内置 `image_gen`，默认工具模式；未调用外部素材库。
 - 文件已从工具默认生成目录复制到本实验 `demo/assets/`，原始生成文件保持不变。
 - 两图采用一致的暖石白、氧化铜绿与少量酸黄发光材质体系。
-- 展示时应注明 AI 辅助生成环境与遗物美术；游戏 UI、交互与动效设计单独说明。
+- 两图的生成记录继续保留；当前素材使用方式以本文件顶部 v2 导航为准。展示时注明 AI 辅助概念美术，并单独说明界面、交互与动效制作。
 
 ## 音轨
 
 - 来源：本项目 `scripts/synthesize-audio.py` 使用 Python 标准库 `math`、`random`、`array`、`wave` 原创合成；没有外部音乐、采样或角色语音。
 - 输出：`output/score.wav`，30 秒、48 kHz、16 bit、双声道。
-- 内容：克制的深空持续音与 UI 提示。2 秒选中、5 秒详情、10 秒确认、14 秒出发、17 秒扫描开始、17.9 秒显影完成、23 秒领取、27 秒片尾。
+- 内容：克制的深空持续音、成员选择与界面反馈。v2 时间轴如下，与 `demo/app.js` 展示模式的节点对应：
+
+| 时间 | 画面与声音节点 |
+| --- | --- |
+| 2 秒 | 成员切换为赫朔 |
+| 4 秒 | 成员切换回岑遥 |
+| 6 秒 | 进入任务星图 |
+| 8 秒 | 选择铜蚀残带 |
+| 10 秒 | 选择静默环站 |
+| 12 秒 | 进入任务档案 |
+| 16 秒 | 出航确认 |
+| 20 秒 | 确认出发，进入回收报告 |
+| 21 秒 | 扫描开始，持续 1.6 秒 |
+| 22.6 秒 | 识别完成 |
+| 25 秒 | 领取遗物，显示已入库 |
+| 28 秒 | 片尾，30 秒结束 |
+
 - 展示影片由同一 Canvas 原型录制后与该音轨合成；页面可保持静音，影片包含音轨。
 
 ## 中文字体子集

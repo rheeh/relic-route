@@ -54,6 +54,11 @@ def synthesize():
             math.sin(TAU * (880 * t + 1300 * t * t)) + 0.28 * math.sin(TAU * 1760 * t)
         )
 
+    def character(t, length):
+        return 0.10 * envelope(t, length, 0.005, 0.07) * math.exp(-t * 19) * (
+            math.sin(TAU * (440 * t + 380 * t * t)) + 0.32 * math.sin(TAU * 660 * t)
+        )
+
     def panel(t, length):
         return 0.09 * envelope(t, length, 0.012, 0.15) * math.exp(-t * 5) * (
             math.sin(TAU * (280 * t + 540 * t * t)) + 0.32 * math.sin(TAU * 700 * t)
@@ -70,9 +75,11 @@ def synthesize():
         )
 
     def scan(t, length):
-        pulse = 0.62 + 0.38 * math.sin(TAU * 8 * t) ** 2
-        return 0.07 * envelope(t, length, 0.03, 0.1) * pulse * (
-            math.sin(TAU * (420 * t + 670 * t * t)) + 0.18 * math.sin(TAU * (840 * t + 1340 * t * t))
+        pulse = 0.70 + 0.30 * math.sin(TAU * 6.5 * t) ** 2
+        # 320→1180 Hz 的柔和上行扫描；轻泛音不越过 2360 Hz。
+        phase = 320 * t + (1180 - 320) * t * t / (2 * length)
+        return 0.055 * envelope(t, length, 0.04, 0.16) * pulse * (
+            math.sin(TAU * phase) + 0.12 * math.sin(TAU * phase * 2)
         )
 
     def reveal(t, length):
@@ -92,15 +99,26 @@ def synthesize():
             + 0.25 * math.sin(TAU * 440 * t)
         )
 
-    # 与 Canvas 展示模式时间轴一一对应。
-    add(2.0, 0.12, click, pan=-0.2)
-    add(5.0, 0.38, panel)
-    add(10.0, 0.3, confirm)
-    add(14.0, 0.8, depart)
-    add(17.0, 0.9, scan, pan=0.15)
-    add(17.9, 0.55, reveal)
-    add(23.0, 0.85, claim)
-    add(27.0, 2.7, ending)
+    # 新版 Canvas 展示模式：角色→星图→档案→确认→回收→片尾。
+    add(2.0, 0.18, character, pan=-0.16)
+    add(4.0, 0.18, character, pan=0.16)
+    add(6.0, 0.38, panel)
+    add(8.0, 0.12, click, pan=-0.12)
+    add(10.0, 0.12, click, pan=0.12)
+    add(12.0, 0.38, panel)
+    add(16.0, 0.3, confirm)
+    add(20.0, 0.8, depart)
+    add(21.0, 1.6, scan, pan=0.1)
+    add(22.6, 0.55, reveal, gain=0.8)
+    add(25.0, 0.75, claim)
+    add(28.0, 2.0, ending)
+
+    # 最终混音淡入/淡出，最后一个 PCM 采样回到零附近。
+    for frame in range(FRAMES):
+        t = frame / RATE
+        fade = min(1.0, t / 0.35, max(0.0, (DURATION - t) / 0.55))
+        left[frame] *= fade
+        right[frame] *= fade
 
     peak = max(max(abs(v) for v in left), max(abs(v) for v in right))
     # 原始混音保留足够峰值余量；仅必要时缩小，不抬高背景音。

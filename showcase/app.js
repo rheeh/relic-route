@@ -22,17 +22,53 @@
       if (target !== undefined) { event.preventDefault(); activateScreen(tabs[target], true); }
     });
   });
-
   const film = document.querySelector('#project-film');
-  document.querySelectorAll('[data-play-film]').forEach(link => {
-    link.addEventListener('click', () => {
-      if (film) film.play().catch(() => {});
-    });
-  });
+  document.querySelectorAll('[data-play-film]').forEach(link => link.addEventListener('click', () => film.play().catch(() => {})));
 
+  const comparison = document.querySelector('#comparison-frame');
+  const compareRange = document.querySelector('#compare-range');
+  const compareHandle = document.querySelector('#compare-handle');
+  const comparePresets = [...document.querySelectorAll('[data-compare]')];
+  function setComparison(value) {
+    const amount = Math.max(0, Math.min(100, Math.round(Number(value))));
+    comparison.style.setProperty('--split', `${amount}%`);
+    compareRange.value = amount;
+    compareRange.setAttribute('aria-valuetext', `旧版 ${amount}%，新版 ${100 - amount}%`);
+    document.querySelector('#compare-output').textContent = `V1 ${amount}% / V2 ${100 - amount}%`;
+    comparison.querySelector('.tag-before').hidden = amount === 0;
+    comparison.querySelector('.tag-after').hidden = amount === 100;
+    comparePresets.forEach(button => button.setAttribute('aria-pressed', String(Number(button.dataset.compare) === amount)));
+  }
+  compareRange.addEventListener('input', () => setComparison(compareRange.value));
+  comparePresets.forEach(button => button.addEventListener('click', () => setComparison(button.dataset.compare)));
+  let dragging = false;
+  function dragComparison(event) {
+    const bounds = comparison.getBoundingClientRect();
+    setComparison((event.clientX - bounds.left) / bounds.width * 100);
+  }
+  compareHandle.addEventListener('pointerdown', event => {
+    dragging = true;
+    compareHandle.setPointerCapture(event.pointerId);
+    dragComparison(event);
+    event.preventDefault();
+  });
+  compareHandle.addEventListener('pointermove', event => { if (dragging) dragComparison(event); });
+  compareHandle.addEventListener('pointerup', () => { dragging = false; });
+  compareHandle.addEventListener('pointercancel', () => { dragging = false; });
+  compareHandle.addEventListener('lostpointercapture', () => { dragging = false; });
+
+  const characterPreview = document.querySelector('#motion-character');
+  let previewPerson = 'lyra';
   document.querySelectorAll('[data-replay]').forEach(button => {
     button.addEventListener('click', () => {
-      const preview = document.querySelector(`#motion-${button.dataset.replay}`);
+      const type = button.dataset.replay;
+      if (type === 'character') {
+        previewPerson = previewPerson === 'lyra' ? 'orion' : 'lyra';
+        characterPreview.dataset.person = previewPerson;
+        document.querySelector('#preview-character-label').textContent = previewPerson === 'lyra' ? '岑遥 / LYRA' : '赫朔 / ORION';
+        return;
+      }
+      const preview = document.querySelector(`#motion-${type}`);
       preview.classList.remove('is-playing');
       void preview.offsetWidth;
       preview.classList.add('is-playing');
@@ -42,22 +78,18 @@
     const observer = new IntersectionObserver(entries => {
       entries.forEach(entry => {
         if (!entry.isIntersecting) return;
-        const preview = entry.target;
-        preview.classList.remove('is-playing');
-        void preview.offsetWidth;
-        preview.classList.add('is-playing');
-        observer.unobserve(preview);
+        entry.target.classList.add('is-playing');
+        observer.unobserve(entry.target);
       });
     }, { threshold: 0.35 });
-    document.querySelectorAll('.motion-preview').forEach(preview => observer.observe(preview));
+    document.querySelectorAll('#motion-transition, #motion-scan').forEach(preview => observer.observe(preview));
   }
 
   const states = {
-    idle: ['领取遗物', '↗', '默认 / 明确标出当前主动作。'],
-    hover: ['领取遗物', '↗', '悬停 / 亮度变化提示可以操作。'],
-    pressed: ['领取遗物', '↗', '按下 / 色阶与底边回应输入。'],
-    confirmed: ['已确认', '✓', '确认 / 即时显示动作已被接收。'],
-    claimed: ['已入库', '✓', '已领取 / 保留结果，阻止重复领取。']
+    idle: ['领取遗物', '↗', '默认 / 当前主动作。'],
+    hover: ['领取遗物', '↗', '悬停 / 提亮，提示可以操作。'],
+    pressed: ['领取遗物', '↗', '按下 / 色阶变深与轻移回应输入。'],
+    claimed: ['已入库', '✓', '已领取 / 保留完成结果。']
   };
   const stateButtons = [...document.querySelectorAll('[data-button-state]')];
   const specButton = document.querySelector('#spec-button');
@@ -76,7 +108,6 @@
   const dialog = document.querySelector('#image-dialog');
   const dialogImage = document.querySelector('#dialog-image');
   let previousFocus;
-  function closeImage() { dialog.close(); }
   document.querySelectorAll('[data-zoom]').forEach(button => {
     button.addEventListener('click', () => {
       previousFocus = button;
@@ -86,7 +117,7 @@
       dialog.showModal();
     });
   });
-  dialog.querySelector('.dialog-close').addEventListener('click', closeImage);
-  dialog.addEventListener('click', event => { if (event.target === dialog) closeImage(); });
+  dialog.querySelector('.dialog-close').addEventListener('click', () => dialog.close());
+  dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
   dialog.addEventListener('close', () => { if (previousFocus) previousFocus.focus(); });
 })();
