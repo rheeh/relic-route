@@ -1,6 +1,15 @@
 # 正式角色素材
 
-两位角色用于《异物航线》的游戏 UI 概念原型，以 Codex 内置 `image_gen` 制作。角色美术属于 AI 辅助生成；界面构图、文字、程序图形和动效单独实现，不将 PNG 视为骨骼或 Live2D 动画。
+本文件保留岑遥与赫朔两位角色的原始生成记录。v3 的四位角色均用于《异物航线》的游戏 UI 概念原型，以 Codex 内置 `image_gen` 制作。角色美术属于 AI 辅助生成；界面构图、文字、程序图形和动效单独实现，不将 PNG 视为骨骼或 Live2D 动画。
+
+## 当前四位角色导航
+
+| 角色 | 立绘与生成记录 |
+| --- | --- |
+| 岑遥 · LYRA | [lyra.png](lyra.png)，原始提示词保留如下 |
+| 赫朔 · ORION | [orion.png](orion.png)，原始提示词保留如下 |
+| 伊芙 · EVE | [eve.png](eve.png)；[提示词、Alpha 与头像裁切](eve-prompt.md) |
+| 岩策 · ROOK | [rook.png](rook.png)；[提示词与头像裁切](rook-prompt.md) |
 
 ## 岑遥 · LYRA
 

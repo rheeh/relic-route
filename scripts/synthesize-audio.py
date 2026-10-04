@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""标准库合成 30 秒深空氛围和 UI 音效；不使用外部采样。"""
+"""标准库合成 40 秒深空氛围、UI 与武器音效；不使用外部采样。"""
 
 from array import array
 import math
@@ -10,7 +10,7 @@ import wave
 
 ROOT = Path(__file__).resolve().parent.parent
 RATE = 48000
-DURATION = 30.0
+DURATION = 40.0
 FRAMES = int(RATE * DURATION)
 TAU = 2 * math.pi
 
@@ -74,6 +74,51 @@ def synthesize():
             math.sin(TAU * (105 * t + 65 * t * t)) + 0.2 * math.sin(TAU * (420 * t + 650 * t * t))
         )
 
+    def pulse_fire(t, length):
+        # 武器 0：细小柔和的高频脉冲，低振幅短尾音。
+        phase = 1250 * t - 420 * t * t / (2 * length)
+        return 0.09 * envelope(t, length, 0.006, 0.07) * math.exp(-t * 13) * (
+            math.sin(TAU * phase) + 0.18 * math.sin(TAU * 1740 * t)
+        )
+
+    def mechanical_fire(t, length):
+        # 武器 1：低音反冲、轻机械瞬态与短金属余响。
+        phase = 125 * t - 65 * t * t / (2 * length)
+        body = 0.145 * math.sin(TAU * phase) * math.exp(-t * 11)
+        metal = 0.038 * math.sin(TAU * 520 * t) * math.exp(-t * 22)
+        tail = 0.024 * math.sin(TAU * 330 * t) * math.exp(-t * 8)
+        texture = 0.025 * rng.uniform(-1, 1) * math.exp(-t * 60)
+        return envelope(t, length, 0.004, 0.13) * (body + metal + tail + texture)
+
+    def light_charge(t, length):
+        ramp = 0.25 + 0.75 * t / length
+        phase = 140 * t + 450 * t * t / (2 * length)
+        return 0.05 * ramp * envelope(t, length, 0.05, 0.09) * (
+            math.sin(TAU * phase) + 0.15 * math.sin(TAU * phase * 2)
+        )
+
+    def light_fire(t, length):
+        # 武器 2：两次独立的短光点音，成对触发。
+        return 0.085 * envelope(t, length, 0.004, 0.04) * math.exp(-t * 21) * (
+            math.sin(TAU * 1320 * t) + 0.18 * math.sin(TAU * 1980 * t)
+        )
+
+    def shield_charge(t, length):
+        ramp = 0.3 + 0.7 * t / length
+        phase = 90 * t + 58 * t * t / (2 * length)
+        return 0.07 * ramp * envelope(t, length, 0.05, 0.1) * (
+            math.sin(TAU * phase) + 0.22 * math.sin(TAU * phase * 2)
+        )
+
+    def shield_impact(t, length):
+        # 武器 3：低沉护盾冲击与收束的能量刃共鸣，不叠加爆炸声。
+        phase = 95 * t - 40 * t * t / (2 * length)
+        low = 0.14 * math.sin(TAU * phase) * math.exp(-t * 5)
+        blade_phase = 660 * t - 180 * t * t / (2 * length)
+        blade = 0.032 * math.sin(TAU * blade_phase) * math.exp(-t * 8)
+        resonance = 0.045 * math.sin(TAU * 112 * t) * math.exp(-t * 7)
+        return envelope(t, length, 0.008, 0.2) * (low + blade + resonance)
+
     def scan(t, length):
         pulse = 0.70 + 0.30 * math.sin(TAU * 6.5 * t) ** 2
         # 320→1180 Hz 的柔和上行扫描；轻泛音不越过 2360 Hz。
@@ -99,19 +144,31 @@ def synthesize():
             + 0.25 * math.sin(TAU * 440 * t)
         )
 
-    # 新版 Canvas 展示模式：角色→星图→档案→确认→回收→片尾。
+    # 40 秒 Canvas 展示：角色→装备试验→星图→档案→确认→回收→片尾。
     add(2.0, 0.18, character, pan=-0.16)
     add(4.0, 0.18, character, pan=0.16)
-    add(6.0, 0.38, panel)
-    add(8.0, 0.12, click, pan=-0.12)
-    add(10.0, 0.12, click, pan=0.12)
-    add(12.0, 0.38, panel)
-    add(16.0, 0.3, confirm)
-    add(20.0, 0.8, depart)
-    add(21.0, 1.6, scan, pan=0.1)
-    add(22.6, 0.55, reveal, gain=0.8)
-    add(25.0, 0.75, claim)
-    add(28.0, 2.0, ending)
+    add(6.0, 0.18, character, pan=-0.08)
+    add(8.0, 0.38, panel)
+    add(8.8, 0.25, pulse_fire)
+    add(10.7, 0.12, click, gain=0.75)
+    add(11.3, 0.42, mechanical_fire)
+    add(13.5, 0.12, click, gain=0.75)
+    add(13.8, 1.0, light_charge)
+    add(14.8, 0.12, light_fire, pan=-0.1)
+    add(14.96, 0.12, light_fire, gain=0.85, pan=0.1)
+    add(16.5, 0.12, click, gain=0.75)
+    add(16.8, 1.0, shield_charge)
+    add(17.8, 0.8, shield_impact)
+    add(19.0, 0.38, panel)
+    add(21.0, 0.12, click, pan=-0.12)
+    add(23.0, 0.12, click, pan=0.12)
+    add(24.0, 0.38, panel)
+    add(28.0, 0.3, confirm)
+    add(31.0, 0.8, depart)
+    add(32.0, 1.6, scan, pan=0.1)
+    add(33.6, 0.55, reveal, gain=0.8)
+    add(36.0, 0.75, claim)
+    add(38.0, 2.0, ending)
 
     # 最终混音淡入/淡出，最后一个 PCM 采样回到零附近。
     for frame in range(FRAMES):
@@ -137,7 +194,7 @@ def synthesize():
         stream.setframerate(RATE)
         stream.writeframes(pcm.tobytes())
     print(f"已合成：{output}")
-    print(f"30 秒 · 48 kHz · 双声道 · 峰值 {20 * math.log10(peak * scale):.1f} dBFS")
+    print(f"{DURATION:g} 秒 · 48 kHz · 双声道 · 峰值 {20 * math.log10(peak * scale):.1f} dBFS")
 
 
 if __name__ == "__main__":

@@ -22,6 +22,28 @@
       if (target !== undefined) { event.preventDefault(); activateScreen(tabs[target], true); }
     });
   });
+  const memberTabs = [...document.querySelectorAll('[data-member]')];
+  const memberPanels = [...document.querySelectorAll('.member-panel')];
+  function activateMember(tab, focus = false) {
+    memberTabs.forEach(item => {
+      const selected = item === tab;
+      item.setAttribute('aria-selected', String(selected));
+      item.tabIndex = selected ? 0 : -1;
+    });
+    memberPanels.forEach(panel => { panel.hidden = panel.id !== tab.getAttribute('aria-controls'); });
+    if (focus) tab.focus();
+  }
+  memberTabs.forEach((tab, index) => {
+    tab.addEventListener('click', () => activateMember(tab));
+    tab.addEventListener('keydown', event => {
+      let target;
+      if (event.key === 'ArrowRight') target = (index + 1) % memberTabs.length;
+      if (event.key === 'ArrowLeft') target = (index - 1 + memberTabs.length) % memberTabs.length;
+      if (event.key === 'Home') target = 0;
+      if (event.key === 'End') target = memberTabs.length - 1;
+      if (target !== undefined) { event.preventDefault(); activateMember(memberTabs[target], true); }
+    });
+  });
   const film = document.querySelector('#project-film');
   document.querySelectorAll('[data-play-film]').forEach(link => link.addEventListener('click', () => film.play().catch(() => {})));
 
@@ -34,7 +56,7 @@
     comparison.style.setProperty('--split', `${amount}%`);
     compareRange.value = amount;
     compareRange.setAttribute('aria-valuetext', `旧版 ${amount}%，新版 ${100 - amount}%`);
-    document.querySelector('#compare-output').textContent = `V1 ${amount}% / V2 ${100 - amount}%`;
+    document.querySelector('#compare-output').textContent = `V1 ${amount}% / V3 ${100 - amount}%`;
     comparison.querySelector('.tag-before').hidden = amount === 0;
     comparison.querySelector('.tag-after').hidden = amount === 100;
     comparePresets.forEach(button => button.setAttribute('aria-pressed', String(Number(button.dataset.compare) === amount)));

@@ -1,5 +1,5 @@
 #!/bin/sh
-# 将 Canvas 原型的 30 秒录像与原创合成音轨合并为作品集视频。
+# 将 Canvas 原型的 40 秒录像与原创合成音轨合并为作品集视频。
 set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
@@ -26,8 +26,9 @@ mkdir -p "$DEST_DIR" "$PROJECT_DIR/showcase"
 ffmpeg -hide_banner -loglevel warning -y \
     -i "$VIDEO" -i "$SCORE" \
     -map 0:v:0 -map 1:a:0 \
-    -vf 'fps=60,scale=1600:900:flags=lanczos,format=yuv420p' \
-    -c:v libx264 -preset slow -crf 18 \
+    -vf 'fps=60,scale=1600:900:flags=lanczos:out_range=tv,format=yuv420p' \
+    -c:v libx264 -preset slow -crf 18 -profile:v high -level:v 4.2 -g 120 \
+    -color_range tv -colorspace bt709 -color_trc bt709 -color_primaries bt709 \
     -c:a aac -b:a 192k -ar 48000 \
-    -t 30 -movflags +faststart "$DEST"
+    -t 40 -movflags +faststart "$DEST"
 printf '%s\n' "已编码：$DEST"

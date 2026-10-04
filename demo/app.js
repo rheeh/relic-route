@@ -1,4 +1,4 @@
-/* RELIC ROUTE / v2 — layered 2D art, a playable UI, and one shared film renderer. */
+/* RELIC ROUTE / v3 — crew, equipment feedback, and a shared film renderer. */
 (() => {
   'use strict';
   const canvas = document.querySelector('#game');
@@ -7,8 +7,17 @@
   const C = { ink:'#101b27', deep:'#09121c', paper:'#f5f0e6', muted:'#a7b6be', line:'#425462', orange:'#ff8657', cyan:'#a5e1e2', gold:'#d4b481' };
   const crew = [
     { name:'岑遥', en:'LYRA', code:'RR—071', role:'轨道导航员', specialty:'信号解析', second:'精密导航', color:C.orange, quote:'“每一道沉默的信号，都有它的归途。”', desc:'循着微弱的回声，\n寻找遗迹中尚未熄灭的光。', briefing:'我会标记脉冲间隙。让我们沿着光，找到核心。', art:'lyra' },
-    { name:'赫朔', en:'ORION', code:'RR—029', role:'遗物工程师', specialty:'结构判读', second:'完整回收', color:C.cyan, quote:'“旧时代的东西，总比看上去更结实。”', desc:'读懂金属与陶瓷的伤痕，\n让远去的文明重新发声。', briefing:'外壳仍然完整。我来确认结构，你负责带它回家。', art:'orion' }
+    { name:'赫朔', en:'ORION', code:'RR—029', role:'遗物工程师', specialty:'结构判读', second:'完整回收', color:C.cyan, quote:'“旧时代的东西，总比看上去更结实。”', desc:'读懂金属与陶瓷的伤痕，\n让远去的文明重新发声。', briefing:'外壳仍然完整。我来确认结构，你负责带它回家。', art:'orion' },
+    { name:'伊芙', en:'EVE', code:'RR—046', role:'深空侦察员', specialty:'隐迹穿行', second:'精准定位', color:'#79d7bf', quote:'“先看见前路，再留下足迹。”', desc:'穿过寂静的观测盲区，\n为同行者标出安全的路径。', briefing:'前方的路径已标记。我会守住你看不见的方向。', art:'eve' },
+    { name:'岩策', en:'ROOK', code:'RR—012', role:'重装先锋', specialty:'相位防护', second:'破障推进', color:C.gold, quote:'“放心向前。剩下的，交给我。”', desc:'以重甲承受风暴，\n为每一次远航守住归途。', briefing:'护盾已展开。我们一起进去，也要一起回来。', art:'rook' }
   ];
+  const weapons = [
+    {name:'弧光脉冲器',code:'PULSE / 01',color:C.cyan,mode:'同心脉冲',desc:'青色能量环沿弹道推进，\n命中后扩散为观测波纹。',charge:'聚合三重脉冲',weight:'轻型 / 观测辅助'},
+    {name:'磁轨锚枪',code:'ANCHOR / 02',color:C.orange,mode:'磁轨穿刺',desc:'双轨将锚钉加速推出，\n留下短促的直线冲击。',charge:'重型锚钉释放',weight:'中型 / 工程装备'},
+    {name:'折线脉冲枪',code:'ARC / 03',color:'#79d7bf',mode:'折线电束',desc:'能量在轨迹中连续折跃，\n以六角标记确认命中。',charge:'高密度电束',weight:'轻型 / 侦察装备'},
+    {name:'相位盾刃',code:'AEGIS / 04',color:C.gold,mode:'新月冲击',desc:'刃光从相位盾面展开，\n向训练靶送出金色冲击。',charge:'盾面聚能冲击',weight:'重型 / 先锋装备'}
+  ];
+  const FILM_DURATION=40;
   const missions = [
     { name:'落锚船坞', en:'THE ANCHOR DOCK', code:'D—03', risk:'低', time:'12', reward:'航行铭牌', rarity:'档案遗物', desc:'在失重货舱中，寻找最后一艘远航船留下的身份铭牌。', note:'船体稳定。靠近舱门时，留意漂浮的陶瓷碎片。', object:'一块仍保留航线刻痕的陶瓷铭牌。它曾指向某个远方。', x:760,y:303, color:C.cyan, tags:['低轨货舱','信号稳定'] },
     { name:'静默环站', en:'THE SILENT OBSERVATORY', code:'M—07', risk:'中', time:'24', reward:'同心环光核', rarity:'稀有遗物', desc:'进入废弃观测环的核心舱，回收一枚仍在规律呼吸的光核。', note:'观测环每隔数秒释放一次脉冲。选择间隙靠近核心。', object:'陶瓷与古铜层层包裹着低温光源。数百年后，它仍在等待下一次观测。', x:1002,y:463, color:C.orange, tags:['环站核心','周期脉冲'] },
@@ -19,12 +28,14 @@
     hover:'', pressed:'', sceneAt:0, changeAt:-1000, selectionAt:-1000, scanAt:0, claimAt:0,
     transition:null, ready:false, reduced:matchMedia('(prefers-reduced-motion: reduce)').matches,
     sound:false, film:false, filmPaused:false, filmAt:0, filmStart:0, recording:false,
-    pointer:{x:0,y:0}, parallax:{x:0,y:0}, frozen:false
+    pointer:{x:0,y:0}, parallax:{x:0,y:0}, frozen:false,
+    shotAt:0,charged:false,shotCount:0,shotBusy:false,chargeSoundPending:false,aimX:610,aimY:200
   };
   const images = {};
   for (const [name,src] of Object.entries({
     hangar:'assets/hangar-v2.png', field:'assets/field.png',
     lyra:'assets/characters/lyra.png', orion:'assets/characters/orion.png',
+    eve:'assets/characters/eve.png', rook:'assets/characters/rook.png',
     relics:'assets/relics-v2.png', destinations:'assets/destinations-v2.png'
   })) { images[name] = new Image(); images[name].src = src; }
   let now=0, audio=null, exportBusy=false;
@@ -104,7 +115,7 @@
     const img=images[crew[which].art];if(!img.naturalWidth)return;
     ctx.save();ctx.beginPath();ctx.rect(x,y,w,h);ctx.clip();
     rect(x,y,w,h,'#273c4b');
-    const sh=img.height*.205,sw=sh*w/h,sx=img.width*(which?.52:.47)-sw/2;
+    const sh=img.height*.205,sw=sh*w/h,sx=img.width*[.47,.52,.435,.53][which]-sw/2;
     ctx.drawImage(img,sx,img.height*.004,sw,sh,x,y,w,h);ctx.restore();
   }
   function operatorArt(which,x,bottom,height,t,alpha=1) {
@@ -138,7 +149,7 @@
       icon('route',90,352,20,C.orange);label('本次远航',112,357,C.paper,13,.4);
       text('第七观测区',84,401,27,C.paper,600);
       wrap('古老的环站再次发来信号。\n指派一位成员，开启回收航线。'.replace('\n',''),84,440,272,15,C.muted,26);
-      label('02 MEMBERS / READY',65,596,C.muted,11,1.4);
+      label('04 MEMBERS / READY',65,596,C.muted,11,1.4);
       text('指派远航员',65,632,24,C.paper,600);
     });
     entrance(t,180,()=>{
@@ -151,10 +162,42 @@
       text(person.role,x+40,376,19,C.paper,500);
       wrap(person.desc,x,422,350,17,'#c3cfd4',29);
       [person.specialty,person.second].forEach((skill,i)=>{const y=518+i*59;icon(i?'route':'scan',x+14,y-4,21,person.color);text(skill,x+42,y+2,17,C.paper,500);line(x+42,y+17,x+340,y+17,'rgba(164,188,201,.25)');});
-      wrap(person.quote,x,674,342,16,person.color,26);
+      wrap(person.quote,x,637,350,15,person.color,23);
     });
     drawButtons('crew',t);
-    label('A / D 切换成员',66,825,C.muted,10,1.1);
+    label('A / D 切换成员  ·  1—4 快速指派',66,825,C.muted,10,1.1);
+  }
+  function drawArmory(t) {
+    backdrop(t,'map');rect(0,84,W,753,'rgba(5,15,25,.77)');header(0,'EQUIPMENT / 装备试验台');
+    const person=crew[state.operator],weapon=weapons[state.operator];
+    const age=state.frozen?1220:state.shotAt?t-state.shotAt:9999;
+    const charging=state.charged&&age<1000&&!state.reduced;
+    const impact=(state.frozen||state.shotAt)&&(state.reduced||age>=(state.charged?1200:180));
+    entrance(t,0,()=>{
+      label('CALIBRATION BAY / 04',65,164,weapon.color,11,1.7);
+      text('让每次行动，',62,218,37,C.paper,650);text('都有回响。',62,267,37,C.paper,650);
+      panel(64,310,338,361,'rgba(21,37,50,.95)','#536b78',15);
+      portrait(state.operator,85,333,67,78);text(person.name,173,360,24,C.paper,600);text(person.role,173,391,14,weapon.color);
+      line(85,430,380,430,C.line);label(weapon.code,85,467,weapon.color,11,1.8);
+      text(weapon.name,85,508,29,C.paper,600);wrap(weapon.desc,85,548,291,16,C.muted,28);
+      label(weapon.weight,85,636,C.muted,11,.3);
+    });
+    label('REAL-TIME EQUIPMENT PREVIEW',477,160,C.muted,10,1.8);
+    if(window.RelicWeapons)RelicWeapons.draw(ctx,{x:450,y:178,w:720,h:530,operator:state.operator,time:state.frozen?5000:t,shotAt:state.frozen?3780:state.shotAt,charged:state.frozen?true:state.charged,reduced:state.reduced,aimX:state.aimX,aimY:state.aimY});
+    entrance(t,130,()=>{
+      const x=1204;panel(x,201,332,345,'rgba(17,32,46,.94)','#506d7c',15);
+      label('LIVE FEEDBACK',x+23,239,weapon.color,11,1.4);
+      text(charging?'正在蓄能':impact?'命中已确认':'训练靶已就绪',x+23,287,26,C.paper,600);
+      text(charging?weapon.charge:weapon.mode,x+23,324,16,weapon.color);
+      const progress=charging?clamp(age/1000):(state.frozen||state.shotAt)?1:0;
+      rect(x+23,349,286,4,'#354c5a');rect(x+23,349,286*progress,4,weapon.color);
+      label('TRIGGER COUNT',x+23,402,C.muted,10,1.3);text(String(state.frozen?1:state.shotCount).padStart(2,'0'),x+23,450,43,C.paper,600);
+      text(state.shotBusy?'反馈演出中':'可以再次操作',x+117,443,14,state.shotBusy?weapon.color:C.muted);
+      line(x+23,474,x+309,474,C.line);text('点击训练靶，或按空格试射。',x+23,511,15,C.muted);
+    });
+    label('LOADOUT / 切换成员与装备',477,698,C.muted,10,1.2);
+    drawButtons('armory',t);
+    text('点击试射 · 蓄能释放 · 即时反馈',479,818,13,C.muted);
   }
   function relic(index,x,y,size,t,alpha=1) {
     const img=images.relics;if(!img.naturalWidth)return;
@@ -328,8 +371,16 @@
   function buttonsFor(screen) {
     const list=[];const add=(id,name,x,y,w,h=58,kind='secondary',extra={})=>list.push({id,name,x,y,w,h,kind,...extra});
     if(screen==='crew'){
-      crew.forEach((p,i)=>add('crew-'+i,'指派'+p.name,64+i*168,658,152,136,'portrait',{operator:i,selected:state.operator===i}));
+      crew.forEach((p,i)=>add('crew-'+i,'指派'+p.name,64+i*100,658,94,136,'portrait',{operator:i,selected:state.operator===i}));
+      add('armory','查看装备 · 互动试射',1154,674,382,48,'secondary');
       add('open-map','确认成员 · 打开星图',1154,735,382,66,'primary');
+    } else if(screen==='armory'){
+      add('back-crew','返回成员整备',64,107,180,34,'back');
+      crew.forEach((p,i)=>add('loadout-'+i,'试用'+p.name+'的装备',474+i*170,720,160,68,'loadout',{operator:i,selected:state.operator===i}));
+      add('fire','普通试射',1204,574,332,60,'primary',{disabled:state.shotBusy});
+      add('charge','蓄能释放',1204,650,332,60,'secondary',{disabled:state.shotBusy});
+      add('hit-target','点击训练靶试射',999,305,122,137,'point',{disabled:state.shotBusy});
+      add('open-map','装备就绪 · 打开星图',1204,757,332,50,'secondary');
     } else if(screen==='map'){
       add('back-crew','返回整备',64,108,112,32,'back');
       missions.forEach((m,i)=>{add('mission-'+i,'选择'+m.name,64,288+i*159,369,141,'mission',{mission:i,selected:state.selected===i});add('point-'+i,'星图节点 '+m.name,m.x-34,m.y-34,68,68,'point',{mission:i,selected:state.selected===i});});
@@ -356,6 +407,12 @@
         ctx.save();cutPath(b.x+3,b.y+3,b.w-6,b.h-6,8);ctx.clip();portrait(b.operator,b.x+9,b.y+2,b.w-18,b.h-24);ctx.restore();
         const shade=ctx.createLinearGradient(0,b.y+54,0,b.y+b.h);shade.addColorStop(0,'rgba(7,18,30,0)');shade.addColorStop(1,'rgba(7,18,30,.96)');panel(b.x+3,b.y+30,b.w-6,b.h-33,shade,null,5);
         text(crew[b.operator].name,b.x+14,b.y+b.h-14,17,b.selected?C.orange:C.paper,600);if(b.selected){rect(b.x,b.y,3,b.h-9,C.orange);icon('check',b.x+b.w-20,b.y+b.h-20,16,C.orange);}
+      } else if(b.kind==='loadout'){
+        const w=weapons[b.operator];
+        panel(b.x,b.y,b.w,b.h,b.selected?'#324749':'#132432',b.selected?w.color:hovered?C.paper:C.line,8);
+        label('0'+(b.operator+1)+' / '+crew[b.operator].en,b.x+12,b.y+23,b.selected?w.color:C.muted,9,.8);
+        text(w.name,b.x+12,b.y+49,17,C.paper,550);
+        if(b.selected)rect(b.x,b.y,3,b.h-8,w.color);
       } else if(b.kind==='mission'){
         panel(b.x,b.y,b.w,b.h,b.selected?'rgba(46,62,68,.98)':hovered?'rgba(33,49,63,.96)':'rgba(15,31,45,.88)',b.selected?task.color:hovered?'#9db0bb':'#405967',12);
         destination(b.mission,b.x+10,b.y+11,98,b.h-22);
@@ -375,12 +432,16 @@
       ctx.restore();
     }
   }
-  const painters={crew:drawCrew,map:drawMap,dossier:drawDossier,confirm:drawConfirm,reward:drawReward,closing:drawClosing};
+  const painters={crew:drawCrew,armory:drawArmory,map:drawMap,dossier:drawDossier,confirm:drawConfirm,reward:drawReward,closing:drawClosing};
   function paint(screen,t) {painters[screen](t);}
   function updateDescription() {
-    const names={crew:'远航员整备',map:'任务星图',dossier:'任务档案',confirm:'出航确认',reward:'回收报告',closing:'异物航线'};
+    const names={crew:'远航员整备',armory:'装备试验台',map:'任务星图',dossier:'任务档案',confirm:'出航确认',reward:'回收报告',closing:'异物航线'};
     document.querySelector('#screen-title').textContent=names[state.screen];
     const person=crew[state.operator],task=missions[state.selected];
+    if(state.screen==='armory'){
+      document.querySelector('#screen-description').textContent='当前成员：'+person.name+'，'+person.role+'。装备：'+weapons[state.operator].name+'。已触发 '+state.shotCount+' 次。'+(state.shotBusy?'反馈演出中。':'可以点击训练靶、普通试射或蓄能释放。');
+      return;
+    }
     document.querySelector('#screen-description').textContent='当前成员：'+person.name+'，'+person.role+'。任务：'+task.name+'。'+task.desc+' 风险'+task.risk+'。'+(state.screen==='reward'?(state.claimed?'遗物已入库。':state.revealed?'识别完成，可以领取遗物。':state.scanAt?'正在识别遗物。':'等待扫描。'):'');
   }
   function updateControls(focus=true) {
@@ -388,7 +449,7 @@
     if(!state.film)for(const b of buttonsFor(state.screen)){
       const element=document.createElement('button');element.type='button';element.className='game-button';element.textContent=b.name;element.title=b.name;element.disabled=!!b.disabled;
       element.dataset.action=b.id;Object.assign(element.style,{left:b.x/W*100+'%',top:b.y/H*100+'%',width:b.w/W*100+'%',height:b.h/H*100+'%'});
-      if(b.kind==='portrait'||b.kind==='mission'||b.kind==='point')element.setAttribute('aria-pressed',String(b.selected));
+      if(['portrait','mission','loadout'].includes(b.kind)||(b.kind==='point'&&b.selected!==undefined))element.setAttribute('aria-pressed',String(b.selected));
       element.addEventListener('pointerenter',()=>state.hover=b.id);element.addEventListener('pointerleave',()=>{state.hover='';state.pressed='';});
       element.addEventListener('pointerdown',()=>state.pressed=b.id);element.addEventListener('pointerup',()=>state.pressed='');
       element.addEventListener('focus',()=>state.hover=b.id);element.addEventListener('blur',()=>state.hover='');
@@ -401,21 +462,32 @@
     if(!state.sound)return;
     try{
       audio ||= new (window.AudioContext||window.webkitAudioContext)();audio.resume();
-      const tones={select:[420,660],open:[300,520],scan:[180,920],claim:[660,990],arrive:[240,480]},notes=tones[kind]||tones.open;
+      const tones={select:[420,660],open:[300,520],scan:[180,920],claim:[660,990],arrive:[240,480],shot0:[660,990],shot1:[110,220],shot2:[880,1320],shot3:[165,330]},notes=tones[kind]||tones.open;
       notes.forEach((frequency,i)=>{const o=audio.createOscillator(),gain=audio.createGain(),start=audio.currentTime+i*.075;o.type='sine';o.frequency.setValueAtTime(frequency,start);gain.gain.setValueAtTime(0,start);gain.gain.linearRampToValueAtTime(.04,start+.008);gain.gain.exponentialRampToValueAtTime(.001,start+.19);o.connect(gain);gain.connect(audio.destination);o.start(start);o.stop(start+.22);});
     }catch(_){/* Audio is an optional enhancement. */}
   }
   function go(screen) {
+    if(screen!=='armory'){state.shotAt=0;state.shotBusy=false;state.chargeSoundPending=false;}
     const frame=document.createElement('canvas');frame.width=W;frame.height=H;frame.getContext('2d').drawImage(canvas,0,0);
     state.transition={frame,at:performance.now(),duration:720};state.screen=screen;state.sceneAt=performance.now();state.hover='';state.pressed='';updateControls();sound(screen==='reward'?'arrive':'open');
   }
   function selectOperator(index) {
     if(state.operator===index)return;
-    state.previousOperator=state.operator;state.operator=index;state.changeAt=performance.now();updateControls(false);sound('select');announce('已指派'+crew[index].name+'，'+crew[index].role+'。');
+    state.previousOperator=state.operator;state.operator=index;state.changeAt=performance.now();state.shotAt=0;state.shotBusy=false;state.chargeSoundPending=false;updateControls(false);sound('select');announce('已指派'+crew[index].name+'，'+crew[index].role+'。');
+  }
+  function fireWeapon(charged=false) {
+    if(state.shotBusy)return;
+    state.shotAt=performance.now();state.charged=charged;state.shotCount++;state.shotBusy=!state.reduced;
+    state.chargeSoundPending=charged&&!state.reduced;sound(state.chargeSoundPending?'scan':'shot'+state.operator);updateControls(false);
+    announce(weapons[state.operator].name+(charged&&!state.reduced?'开始蓄能。':'已试射，训练靶命中。'));
   }
   function act(id) {
     if(state.film||exportBusy)return;
     if(id.startsWith('crew-'))selectOperator(+id.slice(5));
+    else if(id.startsWith('loadout-'))selectOperator(+id.slice(8));
+    else if(id==='armory'){state.shotAt=0;state.shotCount=0;state.shotBusy=false;state.chargeSoundPending=false;go('armory');}
+    else if(id==='fire'||id==='hit-target')fireWeapon(false);
+    else if(id==='charge')fireWeapon(true);
     else if(id.startsWith('mission-')||id.startsWith('point-')){state.selected=+id.split('-')[1];state.selectionAt=performance.now();state.revealed=false;state.claimed=false;state.scanAt=0;updateControls(false);sound('select');announce('已选择'+missions[state.selected].name);}
     else if(id==='open-map'||id==='back-map')go('map');
     else if(id==='back-crew')go('crew');
@@ -427,31 +499,41 @@
   }
   const timeLabel=s=>'00:'+String(Math.floor(s)).padStart(2,'0');
   function filmFrame(s,t) {
-    const sequence=[['crew',0],['map',6],['dossier',12],['confirm',16],['reward',20],['closing',28]];
+    const sequence=[['crew',0],['armory',8],['map',19],['dossier',24],['confirm',28],['reward',31],['closing',38]];
     let index=0;sequence.forEach((item,i)=>{if(s>=item[1])index=i;});
     const screen=sequence[index][0],elapsed=s-sequence[index][1];
-    state.screen=screen;state.sceneAt=t-elapsed*1000;state.operator=s>=2&&s<4?1:0;state.previousOperator=s>=4?1:0;state.changeAt=t-(s>=4?s-4:s>=2?s-2:1)*1000;
-    state.selected=s>=8&&s<10?2:1;state.selectionAt=t-(s>=10?s-10:s>=8?s-8:1)*1000;
-    state.scanAt=s>=21?t-(s-21)*1000:0;state.revealed=s>=22.6;state.claimed=s>=25;state.claimAt=t-(s-25)*1000;
+    state.screen=screen;state.sceneAt=t-elapsed*1000;
+    const roles=s<8?[[0,0],[2,2],[4,3],[6,1]]:[[8,0],[10.7,1],[13.5,2],[16.5,3],[19,0]];
+    let role=0;roles.forEach((item,i)=>{if(s>=item[0])role=i;});
+    state.operator=roles[role][1];state.previousOperator=role?roles[role-1][1]:state.operator;
+    state.changeAt=t-(s-roles[role][0])*1000;
+    state.selected=s>=21&&s<23?2:1;state.selectionAt=t-(s>=23?s-23:s>=21?s-21:1)*1000;
+    const cue=[8.8,11.3,13.8,16.8][state.operator];
+    state.shotAt=screen==='armory'&&s>=cue?t-(s-cue)*1000:0;
+    state.charged=state.operator>=2;state.shotCount=state.shotAt?1:0;
+    state.shotBusy=!!state.shotAt&&s-cue<(state.charged?1.8:.9);
+    state.scanAt=s>=32?t-(s-32)*1000:0;state.revealed=s>=33.6;state.claimed=s>=36;state.claimAt=t-(s-36)*1000;
     state.hover='';state.pressed='';
-    for(const [cue,id] of [[6,'open-map'],[12,'details'],[16,'confirm'],[20,'depart'],[21,'scan'],[25,'claim']]){if(s>=cue-.4&&s<cue)state.hover=id;if(s>=cue-.12&&s<cue)state.pressed=id;}
+    for(const [at,id] of [[8,'armory'],[8.8,'fire'],[11.3,'fire'],[13.8,'charge'],[16.8,'charge'],[19,'open-map'],[24,'details'],[28,'confirm'],[31,'depart'],[32,'scan'],[36,'claim']]){if(s>=at-.35&&s<at)state.hover=id;if(s>=at-.12&&s<at)state.pressed=id;}
     paint(screen,t);
     if(index&&elapsed<.72&&!state.reduced){
       const p=ease(elapsed/.72),x=W*p;ctx.save();ctx.globalAlpha=(1-p)*.9;polygon([[x-170,0],[W,0],[W,H],[x+70,H]],C.deep);ctx.restore();
       line(x-160,0,x+80,H,'rgba(255,146,96,'+(1-p)+')',2);
     }
-    label('0'+(Math.min(index,4)+1)+' / '+['成员整备','选择回声','任务档案','出航确认','遗物显影','航线继续'][index],64,892,C.orange,10,1);
+    label(['01 / 成员整备','02 / 装备试验','03 / 选择回声','04 / 任务档案','05 / 出航确认','06 / 遗物显影','RELIC ROUTE'][index],64,892,C.orange,10,1);
   }
   function render(t) {
     now=t;if(!state.ready)return;
     state.parallax.x+=(state.pointer.x-state.parallax.x)*.045;state.parallax.y+=(state.pointer.y-state.parallax.y)*.045;
     if(state.film){
-      if(!state.filmPaused)state.filmAt=clamp((t-state.filmStart)/1000,0,30);
-      filmFrame(state.filmAt,t);
-      document.querySelector('#film-time').value=state.filmAt;document.querySelector('#film-time-label').value=timeLabel(state.filmAt)+' / 00:30';
-      if(state.filmAt>=30&&!state.recording){state.filmPaused=true;document.querySelector('#pause-film').textContent='重播';}
+      if(!state.filmPaused)state.filmAt=clamp((t-state.filmStart)/1000,0,FILM_DURATION);
+      filmFrame(state.filmAt,100000+state.filmAt*1000);
+      document.querySelector('#film-time').value=state.filmAt;document.querySelector('#film-time-label').value=timeLabel(state.filmAt)+' / 00:40';
+      if(state.filmAt>=FILM_DURATION&&!state.recording){state.filmPaused=true;document.querySelector('#pause-film').textContent='重播';}
       return;
     }
+    if(state.chargeSoundPending&&t-state.shotAt>=1000){state.chargeSoundPending=false;if(state.screen==='armory')sound('shot'+state.operator);}
+    if(state.shotBusy&&t-state.shotAt>=(state.charged?1800:900)){state.shotBusy=false;updateControls(false);announce('训练靶命中，可以再次试射。');}
     if(state.scanAt&&!state.revealed&&t-state.scanAt>=1600){state.revealed=true;updateControls();announce('识别完成：'+missions[state.selected].reward);}
     const tr=state.transition,p=tr?clamp((t-tr.at)/tr.duration):1;
     if(tr&&p<1&&!state.reduced){
@@ -462,21 +544,24 @@
   }
   function loop(t){render(t);requestAnimationFrame(loop);}
   const stage=document.querySelector('#stage');
-  stage.addEventListener('pointermove',e=>{const r=stage.getBoundingClientRect();state.pointer.x=(e.clientX-r.left)/r.width*2-1;state.pointer.y=(e.clientY-r.top)/r.height*2-1;});
+  stage.addEventListener('pointermove',e=>{const r=stage.getBoundingClientRect();state.pointer.x=(e.clientX-r.left)/r.width*2-1;state.pointer.y=(e.clientY-r.top)/r.height*2-1;if(state.screen==='armory'){state.aimX=clamp((e.clientX-r.left)/r.width*W-450,590,632);state.aimY=clamp((e.clientY-r.top)/r.height*H-178,173,231);}});
   stage.addEventListener('pointerleave',()=>{state.pointer.x=0;state.pointer.y=0;});
   function setRecordingControls(disabled) {['film','motion','sound','pause-film','exit-film','film-time','export-frames','export-film'].forEach(id=>document.getElementById(id).disabled=disabled);}
-  function startFilm(){state.film=true;state.filmPaused=false;state.filmAt=0;state.filmStart=performance.now();state.transition=null;state.pointer.x=0;state.pointer.y=0;document.querySelector('#film-controls').hidden=false;document.querySelector('#pause-film').textContent='暂停';document.querySelector('#controls').replaceChildren();}
-  function stopFilm(){if(state.recording)return;state.film=false;state.filmPaused=false;state.screen='crew';state.operator=0;state.previousOperator=0;state.selected=1;state.scanAt=0;state.claimed=false;state.revealed=false;state.sceneAt=performance.now();state.changeAt=-1000;state.transition=null;document.querySelector('#film-controls').hidden=true;updateControls(false);}
+  function startFilm(){state.chargeSoundPending=false;state.film=true;state.filmPaused=false;state.filmAt=0;state.filmStart=performance.now();state.transition=null;state.pointer.x=0;state.pointer.y=0;document.querySelector('#film-controls').hidden=false;document.querySelector('#pause-film').textContent='暂停';document.querySelector('#controls').replaceChildren();}
+  function stopFilm(){if(state.recording)return;state.film=false;state.filmPaused=false;state.screen='crew';state.operator=0;state.previousOperator=0;state.selected=1;state.scanAt=0;state.shotAt=0;state.shotCount=0;state.shotBusy=false;state.charged=false;state.chargeSoundPending=false;state.claimed=false;state.revealed=false;state.sceneAt=performance.now();state.changeAt=-1000;state.transition=null;document.querySelector('#film-controls').hidden=true;updateControls(false);}
   document.querySelector('#film').addEventListener('click',startFilm);document.querySelector('#exit-film').addEventListener('click',stopFilm);
-  document.querySelector('#pause-film').addEventListener('click',()=>{if(state.filmAt>=30){startFilm();return;}state.filmPaused=!state.filmPaused;if(!state.filmPaused)state.filmStart=performance.now()-state.filmAt*1000;document.querySelector('#pause-film').textContent=state.filmPaused?'继续':'暂停';});
+  document.querySelector('#pause-film').addEventListener('click',()=>{if(state.filmAt>=FILM_DURATION){startFilm();return;}state.filmPaused=!state.filmPaused;if(!state.filmPaused)state.filmStart=performance.now()-state.filmAt*1000;document.querySelector('#pause-film').textContent=state.filmPaused?'继续':'暂停';});
   document.querySelector('#film-time').addEventListener('input',e=>{state.filmAt=+e.target.value;state.filmStart=performance.now()-state.filmAt*1000;state.filmPaused=true;document.querySelector('#pause-film').textContent='继续';render(performance.now());});
   document.querySelector('#motion').setAttribute('aria-pressed',String(state.reduced));
-  document.querySelector('#motion').addEventListener('click',e=>{state.reduced=!state.reduced;e.currentTarget.setAttribute('aria-pressed',String(state.reduced));if(state.scanAt){state.revealed=true;updateControls(false);}});
+  document.querySelector('#motion').addEventListener('click',e=>{state.reduced=!state.reduced;e.currentTarget.setAttribute('aria-pressed',String(state.reduced));if(state.scanAt)state.revealed=true;if(state.reduced){state.shotBusy=false;state.chargeSoundPending=false;}updateControls(false);});
   document.querySelector('#sound').addEventListener('click',e=>{state.sound=!state.sound;e.currentTarget.textContent='声音：'+(state.sound?'开':'关');e.currentTarget.setAttribute('aria-pressed',String(state.sound));sound('select');});
   document.addEventListener('keydown',e=>{
     if(e.target.matches('input,textarea,summary')||e.altKey||e.ctrlKey||e.metaKey||state.recording||exportBusy)return;
-    if(e.key==='Escape'){e.preventDefault();if(state.film)stopFilm();else if(state.screen==='confirm')go('dossier');else if(['dossier','reward'].includes(state.screen))go('map');else if(state.screen==='map')go('crew');}
-    else if(!state.film&&state.screen==='crew'&&['a','d','ArrowLeft','ArrowRight','1','2'].includes(e.key)){e.preventDefault();selectOperator(['a','ArrowLeft','1'].includes(e.key)?0:1);}
+    if(e.key==='Escape'){e.preventDefault();if(state.film)stopFilm();else if(state.screen==='confirm')go('dossier');else if(['dossier','reward'].includes(state.screen))go('map');else if(['map','armory'].includes(state.screen))go('crew');}
+    else if(!state.film&&['crew','armory'].includes(state.screen)&&['a','d','ArrowLeft','ArrowRight','1','2','3','4'].includes(e.key)){
+      e.preventDefault();const idx=/^[1-4]$/.test(e.key)?+e.key-1:(state.operator+(['a','ArrowLeft'].includes(e.key)?3:1))%4;selectOperator(idx);
+    }
+    else if(!state.film&&state.screen==='armory'&&e.code==='Space'&&(e.shiftKey||!e.target.closest('button,a,input,summary'))){e.preventDefault();if(!e.repeat)fireWeapon(e.shiftKey);}
     else if(!state.film&&state.screen==='map'&&['1','2','3'].includes(e.key)){e.preventDefault();act('mission-'+(+e.key-1));}
     else if(!state.film&&e.key==='Enter'&&e.target===document.body){act({crew:'open-map',map:'details',dossier:'confirm',confirm:'depart',reward:state.claimed?'back-map':state.revealed?'claim':'scan'}[state.screen]);}
   });
@@ -486,10 +571,10 @@
     const out=document.querySelector('#export-status');stopFilm();exportBusy=true;setRecordingControls(true);
     try{
       state.frozen=true;state.operator=0;state.previousOperator=0;state.selected=1;state.transition=null;state.hover='';state.pressed='';state.parallax.x=0;state.parallax.y=0;
-      for(const [screen,name] of [['crew','00-crew.png'],['map','01-map.png'],['dossier','02-dossier.png'],['confirm','03-confirm.png'],['reward','04-reward.png']]){
+      for(const [screen,name] of [['crew','00-crew.png'],['map','01-map.png'],['dossier','02-dossier.png'],['confirm','03-confirm.png'],['reward','04-reward.png'],['armory','05-armory.png']]){
         state.screen=screen;state.revealed=screen==='reward';state.claimed=false;state.scanAt=0;paint(screen,performance.now());await save(await png(),name);
       }
-      out.textContent='五张 1600 × 900 原生界面图已保存到 showcase/。';
+      out.textContent='六张 1600 × 900 原生界面图已保存到 showcase/。';
     }catch(error){out.textContent=error.message;}finally{state.frozen=false;exportBusy=false;setRecordingControls(false);stopFilm();}
   });
   document.querySelector('#export-film').addEventListener('click',()=>{
@@ -502,15 +587,16 @@
     recorder.ondataavailable=event=>{if(event.data.size)chunks.push(event.data);};
     recorder.onstop=async()=>{
       stream.getTracks().forEach(track=>track.stop());state.recording=false;state.filmPaused=true;
-      try{await save(new Blob(chunks,{type}),'film.webm');out.textContent='30 秒角色与航线演出已保存，可运行 scripts/encode-film.sh 生成 MP4。';}
+      try{await save(new Blob(chunks,{type}),'film.webm');out.textContent='40 秒角色与航线演出已保存，可运行 scripts/encode-film.sh 生成 MP4。';}
       catch(error){out.textContent=error.message;}finally{setRecordingControls(false);document.querySelector('#pause-film').textContent='重播';}
     };
-    recorder.start(1000);out.textContent='录制中：0 / 30 秒';
-    const tick=setInterval(()=>{out.textContent='录制中：'+Math.min(30,Math.floor(state.filmAt))+' / 30 秒';if(state.filmAt>=30){clearInterval(tick);recorder.stop();}},250);
+    recorder.start(1000);out.textContent='录制中：0 / 40 秒';
+    const tick=setInterval(()=>{out.textContent='录制中：'+Math.min(FILM_DURATION,Math.floor(state.filmAt))+' / 40 秒';if(state.filmAt>=FILM_DURATION){clearInterval(tick);recorder.stop();}},250);
   });
   if(new URLSearchParams(location.search).has('studio'))document.querySelector('#studio').hidden=false;
   Promise.all([document.fonts.load('400 18px Archive'),document.fonts.load('900 48px Route'),...Object.values(images).map(img=>img.decode())]).then(()=>{
-    state.ready=true;state.sceneAt=performance.now();document.querySelector('#loading').hidden=true;updateControls(false);
+    const params=new URLSearchParams(location.search),member=['lyra','orion','eve','rook'].indexOf(params.get('member'));
+    state.ready=true;if(member>=0)state.operator=state.previousOperator=member;if(params.get('screen')==='armory')state.screen='armory';state.sceneAt=performance.now();document.querySelector('#loading').hidden=true;updateControls(false);
     if(new URLSearchParams(location.search).has('film'))startFilm();requestAnimationFrame(loop);
   }).catch(error=>{document.querySelector('#loading p').textContent='素材未能载入，请检查文件或刷新。';console.error(error);});
 })();
